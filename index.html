@@ -3,23 +3,23 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>AI Magic Wand</title>
+    <title>Magic Wand</title>
     <script src="coi-serviceworker.js"></script>
     <style>
         body { font-family: sans-serif; text-align: center; background: #121212; color: white; padding: 20px; }
-        .container { max-width: 400px; margin: 0 auto; background: #1e1e1e; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        #prediction { font-size: 3rem; font-weight: bold; color: #00ff88; margin: 20px 0; text-transform: uppercase; }
-        #status { color: #888; margin-bottom: 20px; font-style: italic; }
-        button { background: #007aff; color: white; border: none; padding: 20px 40px; font-size: 1.2rem; border-radius: 50px; cursor: pointer; font-weight: bold; }
-        button:active { transform: scale(0.98); }
+        .container { max-width: 400px; margin: 50px auto; background: #1e1e1e; padding: 30px; border-radius: 20px; }
+        #prediction { font-size: 3.5rem; font-weight: bold; color: #00ff88; margin: 30px 0; }
+        #status { color: #888; margin-bottom: 20px; height: 20px; }
+        button { background: #007aff; color: white; border: none; padding: 20px 40px; font-size: 1.2rem; border-radius: 50px; cursor: pointer; width: 100%; }
+        .countdown { color: #ffcc00; font-size: 2rem; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2 id="project-name">Loading AI...</h2>
-        <div id="status">Wait for "Ready"</div>
+        <h2 id="project-name">AI Wand</h2>
+        <div id="status">Loading...</div>
         <div id="prediction">---</div>
-        <button id="btn-start">START WAND</button>
+        <button id="btn-start">ACTIVATE WAND</button>
     </div>
 
     <script src="edge-impulse-standalone.js"></script>
@@ -28,13 +28,66 @@
     <script>
         let classifier;
         let sensorData = [];
-        const THRESHOLD = 0.75; // Only show result if AI is >75% sure
 
         (async () => {
             try {
                 classifier = new EdgeImpulseClassifier();
                 await classifier.init();
-                let project = classifier.getProjectInfo();
+                document.getElementById('status').textContent = "Model Ready";
+            } catch (e) {
+                document.getElementById('status').textContent = "Error loading model";
+            }
+        })();
+
+        document.getElementById('btn-start').onclick = async () => {
+            // 1. iOS Permission Request
+            if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                const permission = await DeviceMotionEvent.requestPermission();
+                if (permission !== 'granted') return alert("Access denied");
+            }
+
+            // 2. Countdown to prevent "Click-Trigger"
+            let count = 3;
+            document.getElementById('btn-start').style.display = 'none';
+            const countdownInterval = setInterval(() => {
+                document.getElementById('prediction').innerHTML = `<span class="countdown">${count}</span>`;
+                count--;
+                if (count < 0) {
+                    clearInterval(countdownInterval);
+                    startSensing();
+                }
+            }, 1000);
+        };
+
+        function startSensing() {
+            document.getElementById('status').textContent = "Wand Active - WAVE NOW!";
+            document.getElementById('prediction').textContent = "LISTENING...";
+
+            window.addEventListener("devicemotion", (event) => {
+                const x = event.accelerationIncludingGravity.x;
+                const y = event.accelerationIncludingGravity.y;
+                const z = event.accelerationIncludingGravity.z;
+
+                sensorData.push(x, y, z);
+
+                // Assuming a 2-second window (120 samples)
+                if (sensorData.length >= 120) {
+                    let res = classifier.classify(sensorData);
+                    let top = res.results[0];
+                    
+                    // Only update if it's a strong match (>0.8)
+                    if (top.value > 0.8) {
+                        document.getElementById('prediction').textContent = top.label.toUpperCase();
+                    }
+                    
+                    // Clear buffer to keep it real-time
+                    sensorData = []; 
+                }
+            });
+        }
+    </script>
+</body>
+</html>                let project = classifier.getProjectInfo();
                 document.getElementById('project-name').textContent = project.name;
                 document.getElementById('status').textContent = "Ready! Tap Start.";
             } catch (e) {
